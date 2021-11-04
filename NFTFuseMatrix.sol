@@ -34,19 +34,11 @@ contract NFTFuseMatrix {
         address referrer;
         uint partnersCount;
         
-        mapping(uint8 => bool) activeX3Levels;
         mapping(uint8 => bool) activeX6Levels;
         
-        mapping(uint8 => X3) x3Matrix;
         mapping(uint8 => X6) x6Matrix;
     }
     
-    struct X3 {
-        address currentReferrer;
-        address[] referrals;
-        bool blocked;
-        uint reinvestCount;
-    }
     
     struct X6 {
         address currentReferrer;
@@ -58,7 +50,7 @@ contract NFTFuseMatrix {
         address closedPart;
     }
 
-    uint8 public constant LAST_LEVEL = 12;
+    uint8 public constant LAST_LEVEL = 3;
     
     mapping(address => User) public users;
     mapping(uint => address) public idToAddress;
@@ -80,8 +72,8 @@ contract NFTFuseMatrix {
     
     constructor(address ownerAddress) public {
         levelPrice[1] = 0.025 ether;
-        for (uint8 i = 2; i <= LAST_LEVEL; i++) {
-            levelPrice[i] = levelPrice[i-1] * 2;
+        for (uint8 i = 3; i <= LAST_LEVEL; i++) {
+            levelPrice[i] = levelPrice[i-1] * 10;
         }
         
         owner = ownerAddress;
@@ -96,7 +88,6 @@ contract NFTFuseMatrix {
         idToAddress[1] = ownerAddress;
         
         for (uint8 i = 1; i <= LAST_LEVEL; i++) {
-            users[ownerAddress].activeX3Levels[i] = true;
             users[ownerAddress].activeX6Levels[i] = true;
         }
         
@@ -122,20 +113,6 @@ contract NFTFuseMatrix {
         require(level > 1 && level <= LAST_LEVEL, "invalid level");
 
         if (matrix == 1) {
-            require(!users[msg.sender].activeX3Levels[level], "level already activated");
-
-            if (users[msg.sender].x3Matrix[level-1].blocked) {
-                users[msg.sender].x3Matrix[level-1].blocked = false;
-            }
-    
-            address freeX3Referrer = findFreeX3Referrer(msg.sender, level);
-            users[msg.sender].x3Matrix[level].currentReferrer = freeX3Referrer;
-            users[msg.sender].activeX3Levels[level] = true;
-            updateX3Referrer(msg.sender, freeX3Referrer, level);
-            
-            emit Upgrade(msg.sender, freeX3Referrer, 1, level);
-
-        } else {
             require(!users[msg.sender].activeX6Levels[level], "level already activated"); 
 
             if (users[msg.sender].x6Matrix[level-1].blocked) {
@@ -152,7 +129,7 @@ contract NFTFuseMatrix {
     }    
     
     function registration(address userAddress, address referrerAddress) private {
-        require(msg.value == 0.05 ether, "registration cost 0.05");
+        require(msg.value == 0.025 ether, "registration cost 0.025");
         require(!isUserExists(userAddress), "user exists");
         require(isUserExists(referrerAddress), "referrer not exists");
         
@@ -173,7 +150,6 @@ contract NFTFuseMatrix {
         
         users[userAddress].referrer = referrerAddress;
         
-        users[userAddress].activeX3Levels[1] = true; 
         users[userAddress].activeX6Levels[1] = true;
         
         
@@ -182,48 +158,11 @@ contract NFTFuseMatrix {
         
         users[referrerAddress].partnersCount++;
 
-        address freeX3Referrer = findFreeX3Referrer(userAddress, 1);
-        users[userAddress].x3Matrix[1].currentReferrer = freeX3Referrer;
-        updateX3Referrer(userAddress, freeX3Referrer, 1);
-
         updateX6Referrer(userAddress, findFreeX6Referrer(userAddress, 1), 1);
         
         emit Registration(userAddress, referrerAddress, users[userAddress].id, users[referrerAddress].id);
     }
     
-    function updateX3Referrer(address userAddress, address referrerAddress, uint8 level) private {
-        users[referrerAddress].x3Matrix[level].referrals.push(userAddress);
-
-        if (users[referrerAddress].x3Matrix[level].referrals.length < 3) {
-            emit NewUserPlace(userAddress, referrerAddress, 1, level, uint8(users[referrerAddress].x3Matrix[level].referrals.length));
-            return sendETHDividends(referrerAddress, userAddress, 1, level);
-        }
-        
-        emit NewUserPlace(userAddress, referrerAddress, 1, level, 3);
-        //close matrix
-        users[referrerAddress].x3Matrix[level].referrals = new address[](0);
-        if (!users[referrerAddress].activeX3Levels[level+1] && level != LAST_LEVEL) {
-            users[referrerAddress].x3Matrix[level].blocked = true;
-        }
-
-        //create new one by recursion
-        if (referrerAddress != owner) {
-            //check referrer active level
-            address freeReferrerAddress = findFreeX3Referrer(referrerAddress, level);
-            if (users[referrerAddress].x3Matrix[level].currentReferrer != freeReferrerAddress) {
-                users[referrerAddress].x3Matrix[level].currentReferrer = freeReferrerAddress;
-            }
-            
-            users[referrerAddress].x3Matrix[level].reinvestCount++;
-            emit Reinvest(referrerAddress, freeReferrerAddress, userAddress, 1, level);
-            updateX3Referrer(referrerAddress, freeReferrerAddress, level);
-        } else {
-            sendETHDividends(owner, userAddress, 1, level);
-            users[owner].x3Matrix[level].reinvestCount++;
-            emit Reinvest(owner, address(0), userAddress, 1, level);
-        }
-    }
-
     function updateX6Referrer(address userAddress, address referrerAddress, uint8 level) private {
         require(users[referrerAddress].activeX6Levels[level], "500. Referrer level is inactive");
         
@@ -362,16 +301,6 @@ contract NFTFuseMatrix {
         }
     }
     
-    function findFreeX3Referrer(address userAddress, uint8 level) public view returns(address) {
-        while (true) {
-            if (users[users[userAddress].referrer].activeX3Levels[level]) {
-                return users[userAddress].referrer;
-            }
-            
-            userAddress = users[userAddress].referrer;
-        }
-    }
-    
     function findFreeX6Referrer(address userAddress, uint8 level) public view returns(address) {
         while (true) {
             if (users[users[userAddress].referrer].activeX6Levels[level]) {
@@ -382,18 +311,8 @@ contract NFTFuseMatrix {
         }
     }
         
-    function usersActiveX3Levels(address userAddress, uint8 level) public view returns(bool) {
-        return users[userAddress].activeX3Levels[level];
-    }
-
     function usersActiveX6Levels(address userAddress, uint8 level) public view returns(bool) {
         return users[userAddress].activeX6Levels[level];
-    }
-
-    function usersX3Matrix(address userAddress, uint8 level) public view returns(address, address[] memory, bool) {
-        return (users[userAddress].x3Matrix[level].currentReferrer,
-                users[userAddress].x3Matrix[level].referrals,
-                users[userAddress].x3Matrix[level].blocked);
     }
 
     function usersX6Matrix(address userAddress, uint8 level) public view returns(address, address[] memory, address[] memory, bool, address) {
@@ -412,16 +331,6 @@ contract NFTFuseMatrix {
         address receiver = userAddress;
         bool isExtraDividends;
         if (matrix == 1) {
-            while (true) {
-                if (users[receiver].x3Matrix[level].blocked) {
-                    emit MissedEthReceive(receiver, _from, 1, level);
-                    isExtraDividends = true;
-                    receiver = users[receiver].x3Matrix[level].currentReferrer;
-                } else {
-                    return (receiver, isExtraDividends);
-                }
-            }
-        } else {
             while (true) {
                 if (users[receiver].x6Matrix[level].blocked) {
                     emit MissedEthReceive(receiver, _from, 2, level);
