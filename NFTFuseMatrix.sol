@@ -71,7 +71,7 @@ contract NFTFuseMatrix {
     
     
     constructor(address ownerAddress) public {
-        levelPrice[1] = 0.025 ether;
+        levelPrice[1] = 0.01 ether;
         for (uint8 i = 3; i <= LAST_LEVEL; i++) {
             levelPrice[i] = levelPrice[i-1] * 10;
         }
