@@ -1,12 +1,4 @@
 /**
- *Submitted for verification at Etherscan.io on 2021-10-27
-*/
-
-/**
- *Submitted for verification at Etherscan.io on 2020-01-31
-*/
-
-/**
 *
 *      ___           ___         ___           ___           ___                 
 *     /__/\         /  /\       /__/\         /  /\         /  /\          ___   
@@ -129,7 +121,7 @@ contract NFTFuseMatrix {
     }    
     
     function registration(address userAddress, address referrerAddress) private {
-        require(msg.value == 0.025 ether, "registration cost 0.025");
+        require(msg.value == 0.01 ether, "registration cost 0.01");
         require(!isUserExists(userAddress), "user exists");
         require(isUserExists(referrerAddress), "referrer not exists");
         
