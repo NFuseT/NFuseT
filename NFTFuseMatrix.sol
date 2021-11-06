@@ -348,7 +348,7 @@ contract NFTFuseMatrix {
     }
     
     function bytesToAddress(bytes memory bys) private pure returns (address addr) {
-        assembly {ka
+        assembly {
             addr := mload(add(bys, 20))
         }
     }
