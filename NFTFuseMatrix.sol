@@ -55,11 +55,11 @@ contract NFTFuseMatrix {
     mapping(uint8 => uint) public levelPrice;
     
     event Registration(address indexed user, address indexed referrer, uint indexed userId, uint referrerId);
-    event Reinvest(address indexed user, address indexed currentReferrer, address indexed caller, uint8 matrix, uint8 level);
-    event Upgrade(address indexed user, address indexed referrer, uint8 matrix, uint8 level);
-    event NewUserPlace(address indexed user, address indexed referrer, uint8 matrix, uint8 level, uint8 place);
-    event MissedEthReceive(address indexed receiver, address indexed from, uint8 matrix, uint8 level);
-    event SentExtraEthDividends(address indexed from, address indexed receiver, uint8 matrix, uint8 level);
+    event Reinvest(address indexed user, address indexed currentReferrer, address indexed caller, uint8 level);
+    event Upgrade(address indexed user, address indexed referrer, uint8 level);
+    event NewUserPlace(address indexed user, address indexed referrer, uint8 level, uint8 place);
+    event MissedEthReceive(address indexed receiver, address indexed from, uint8 level);
+    event SentExtraEthDividends(address indexed from, address indexed receiver, uint8 level);
     
     
     constructor(address ownerAddress) public {
@@ -98,26 +98,23 @@ contract NFTFuseMatrix {
         registration(msg.sender, referrerAddress);
     }
     
-    function buyNewLevel(uint8 matrix, uint8 level) external payable {
+    function buyNewLevel(uint8 level) external payable {
         require(isUserExists(msg.sender), "user is not exists. Register first.");
-        require(matrix == 1 || matrix == 2, "invalid matrix");
         require(msg.value == levelPrice[level], "invalid price");
         require(level > 1 && level <= LAST_LEVEL, "invalid level");
 
-        if (matrix == 1) {
-            require(!users[msg.sender].activeX6Levels[level], "level already activated"); 
+        require(!users[msg.sender].activeX6Levels[level], "level already activated"); 
 
-            if (users[msg.sender].x6Matrix[level-1].blocked) {
-                users[msg.sender].x6Matrix[level-1].blocked = false;
-            }
-
-            address freeX6Referrer = findFreeX6Referrer(msg.sender, level);
-            
-            users[msg.sender].activeX6Levels[level] = true;
-            updateX6Referrer(msg.sender, freeX6Referrer, level);
-            
-            emit Upgrade(msg.sender, freeX6Referrer, 2, level);
+        if (users[msg.sender].x6Matrix[level-1].blocked) {
+            users[msg.sender].x6Matrix[level-1].blocked = false;
         }
+
+        address freeX6Referrer = findFreeX6Referrer(msg.sender, level);
+        
+        users[msg.sender].activeX6Levels[level] = true;
+        updateX6Referrer(msg.sender, freeX6Referrer, level);
+        
+        emit Upgrade(msg.sender, freeX6Referrer, 2, level);
     }    
     
     function registration(address userAddress, address referrerAddress) private {
@@ -319,31 +316,29 @@ contract NFTFuseMatrix {
         return (users[user].id != 0);
     }
 
-    function findEthReceiver(address userAddress, address _from, uint8 matrix, uint8 level) private returns(address, bool) {
+    function findEthReceiver(address userAddress, address _from, uint8 level) private returns(address, bool) {
         address receiver = userAddress;
         bool isExtraDividends;
-        if (matrix == 1) {
-            while (true) {
-                if (users[receiver].x6Matrix[level].blocked) {
-                    emit MissedEthReceive(receiver, _from, 2, level);
-                    isExtraDividends = true;
-                    receiver = users[receiver].x6Matrix[level].currentReferrer;
-                } else {
-                    return (receiver, isExtraDividends);
-                }
+        while (true) {
+            if (users[receiver].x6Matrix[level].blocked) {
+                emit MissedEthReceive(receiver, _from, 2, level);
+                isExtraDividends = true;
+                receiver = users[receiver].x6Matrix[level].currentReferrer;
+            } else {
+                return (receiver, isExtraDividends);
             }
         }
     }
 
-    function sendETHDividends(address userAddress, address _from, uint8 matrix, uint8 level) private {
-        (address receiver, bool isExtraDividends) = findEthReceiver(userAddress, _from, matrix, level);
+    function sendETHDividends(address userAddress, address _from, uint8 level) private {
+        (address receiver, bool isExtraDividends) = findEthReceiver(userAddress, _from, level);
 
         if (!address(uint160(receiver)).send(levelPrice[level])) {
             return address(uint160(receiver)).transfer(address(this).balance);
         }
         
         if (isExtraDividends) {
-            emit SentExtraEthDividends(_from, receiver, matrix, level);
+            emit SentExtraEthDividends(_from, receiver, level);
         }
     }
     
